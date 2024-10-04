@@ -20,26 +20,34 @@ class ForexWebSocketService implements WebSocketService {
 
     _channel!.stream.listen(
       (message) {
-        if (!_isDisposed) {
-          final data = json.decode(message);
-          if (data['type'] == 'trade') {
-            for (var trade in data['data']) {
-              _streamController?.add({
-                'symbol': trade['s'],
-                'price': trade['p'],
-                'timestamp': trade['t'],
-              });
+        if (!_isDisposed && _streamController != null && !_streamController!.isClosed) {
+          try {
+            final data = json.decode(message);
+            if (data['type'] == 'trade') {
+              for (var trade in data['data']) {
+                _streamController!.add({
+                  'symbol': trade['s'],
+                  'price': trade['p'],
+                  'timestamp': trade['t'],
+                });
+              }
+            } else if (data['type'] == 'error') {
+              _streamController!.addError(data['msg']);
             }
-          } else if (data['type'] == 'error') {
-            _streamController?.addError(data['msg']);
+          } catch (e) {
+            _streamController!.addError('Error processing message: $e');
           }
         }
       },
       onError: (error) {
-        if (!_isDisposed) _streamController?.addError(error.toString());
+        if (!_isDisposed && _streamController != null && !_streamController!.isClosed) {
+          _streamController!.addError(error.toString());
+        }
       },
       onDone: () {
-        if (!_isDisposed) _streamController?.close();
+        if (!_isDisposed && _streamController != null && !_streamController!.isClosed) {
+          _streamController!.close();
+        }
       },
     );
 
@@ -48,7 +56,9 @@ class ForexWebSocketService implements WebSocketService {
 
   @override
   void sendMessage(String message) {
-    if (!_isDisposed) _channel?.sink.add(message);
+    if (!_isDisposed && _channel != null) {
+      _channel!.sink.add(message);
+    }
   }
 
   @override

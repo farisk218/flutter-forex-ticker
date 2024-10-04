@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:bloc_concurrency/bloc_concurrency.dart';
+import 'package:flutter_trading_app/features/forex/domain/entities/price_update.dart';
 import 'package:flutter_trading_app/features/forex/domain/usecases/get_forex_instruments.dart';
 import 'package:flutter_trading_app/features/forex/domain/usecases/get_real_time_price.dart';
 import 'package:rxdart/rxdart.dart';
@@ -36,6 +37,7 @@ class ForexBloc extends Bloc<ForexEvent, ForexState> {
       LoadForexInstruments event, Emitter<ForexState> emit) async {
     emit(ForexLoading());
     final result = await getForexInstruments(NoParams());
+    if (emit.isDone) return;
     result.fold(
       (failure) => emit(ForexError(message: failure.toString())),
       (instruments) {
@@ -54,34 +56,42 @@ class ForexBloc extends Bloc<ForexEvent, ForexState> {
     add(SubscribeToRealTimeUpdates(symbolsToSubscribe));
     _currentSymbolIndex = endIndex % _allSymbols.length;
 
-    // Schedule next rotation
     _rotationTimer?.cancel();
     _rotationTimer =
         Timer(Duration(minutes: 1), () => add(RotateSubscriptions()));
   }
 
-  void _onSubscribeToRealTimeUpdates(
-      SubscribeToRealTimeUpdates event, Emitter<ForexState> emit) {
-    _priceSubscription?.cancel();
-    try {
-      _priceSubscription = getRealTimePrice(event.symbols).listen(
-        (priceUpdate) => add(UpdateForexPrice(
-            symbol: priceUpdate.symbol, price: priceUpdate.price)),
-        onError: (error) {
-          emit(ForexError(message: error.toString()));
-          _subscribeToNextBatch(); // Try to resubscribe on error
-        },
-        cancelOnError: false,
-      );
-    } catch (e) {
+  Future<void> _onSubscribeToRealTimeUpdates(SubscribeToRealTimeUpdates event, Emitter<ForexState> emit) async {
+  await _priceSubscription?.cancel();
+  try {
+    final stream = getRealTimePrice(event.symbols);
+    await emit.forEach<PriceUpdate>(
+      stream,
+      onData: (priceUpdate) {
+        if (state is ForexLoaded) {
+          final currentState = state as ForexLoaded;
+          final updatedInstruments = currentState.instruments.map((instrument) =>
+            instrument.symbol == priceUpdate.symbol ? instrument.copyWith(price: priceUpdate.price) : instrument
+          ).toList();
+          return ForexLoaded(instruments: updatedInstruments);
+        }
+        return state;
+      },
+      onError: (error, stackTrace) {
+        return ForexError(message: error.toString());
+      },
+    );
+  } catch (e) {
+    if (!emit.isDone) {
       emit(ForexError(message: 'Failed to subscribe: ${e.toString()}'));
-      _subscribeToNextBatch(); // Try to resubscribe on error
     }
+    _subscribeToNextBatch();
   }
+}
 
-  void _onUnsubscribeFromRealTimeUpdates(
-      UnsubscribeFromRealTimeUpdates event, Emitter<ForexState> emit) {
-    _priceSubscription?.cancel();
+  Future<void> _onUnsubscribeFromRealTimeUpdates(
+      UnsubscribeFromRealTimeUpdates event, Emitter<ForexState> emit) async {
+    await _priceSubscription?.cancel();
     _priceSubscription = null;
   }
 
@@ -116,8 +126,8 @@ class ForexBloc extends Bloc<ForexEvent, ForexState> {
   }
 
   @override
-  Future<void> close() {
-    _priceSubscription?.cancel();
+  Future<void> close() async {
+    await _priceSubscription?.cancel();
     _rotationTimer?.cancel();
     return super.close();
   }
