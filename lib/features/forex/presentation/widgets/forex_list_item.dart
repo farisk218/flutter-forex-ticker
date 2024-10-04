@@ -1,33 +1,49 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_trading_app/features/forex/domain/entities/forex_instrument.dart';
 
 class ForexListItem extends StatelessWidget {
-  final String symbol;
-  final String displaySymbol;
-  final String description;
-  final double price;
+  final ForexInstrument instrument;
+  final ForexInstrument? previousInstrument;
 
   const ForexListItem({
     Key? key,
-    required this.symbol,
-    required this.displaySymbol,
-    required this.description,
-    required this.price,
+    required this.instrument,
+    this.previousInstrument,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    final priceChanged = previousInstrument != null &&
+        instrument.price != previousInstrument!.price;
+    final priceIncreased =
+        priceChanged && instrument.price > previousInstrument!.price;
+
     return ListTile(
-      title: Text(displaySymbol),
-      subtitle: Text(description),
-      trailing: Text(
-        price.toStringAsFixed(4),
-        style: const TextStyle(
-          fontWeight: FontWeight.bold,
-          fontSize: 16,
-        ),
+      title: Text(instrument.displaySymbol),
+      subtitle: Text(instrument.description),
+      trailing: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            instrument.price.toStringAsFixed(4),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: priceChanged
+                  ? (priceIncreased ? Colors.green : Colors.red)
+                  : null,
+            ),
+          ),
+          if (priceChanged)
+            Icon(
+              priceIncreased ? Icons.arrow_upward : Icons.arrow_downward,
+              color: priceIncreased ? Colors.green : Colors.red,
+              size: 16,
+            ),
+        ],
       ),
       onTap: () {
-        // TODO: Implement detailed view or action when tapped
+        // TODO: Navigate to detail view
       },
     );
   }
