@@ -35,7 +35,7 @@ class ForexInstrumentModel extends ForexInstrument
       description: json['description'] ?? '',
       displaySymbol: json['displaySymbol'] ?? '',
       symbol: json['symbol'] ?? '',
-      price: (json['price'] as num?)?.toDouble() ?? 0.0,
+      price: (json['price'] != null) ? (json['price'] as num).toDouble() : 0.0,
     );
   }
 

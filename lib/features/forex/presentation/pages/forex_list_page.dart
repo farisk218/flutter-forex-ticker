@@ -6,6 +6,8 @@ import 'package:flutter_trading_app/features/forex/presentation/bloc/forex_event
 import 'package:flutter_trading_app/features/forex/presentation/bloc/forex_state.dart';
 import 'package:flutter_trading_app/features/forex/presentation/widgets/forex_list_item.dart';
 
+import '../widgets/forex_search_bar.dart';
+
 class ForexListPage extends StatefulWidget {
   const ForexListPage({Key? key}) : super(key: key);
 
@@ -14,6 +16,9 @@ class ForexListPage extends StatefulWidget {
 }
 
 class _ForexListPageState extends State<ForexListPage> {
+  final _searchController = TextEditingController();
+  bool _sortAscending = true;
+
   @override
   void initState() {
     super.initState();
@@ -22,8 +27,14 @@ class _ForexListPageState extends State<ForexListPage> {
 
   @override
   void dispose() {
+    _searchController.dispose();
     context.read<ForexBloc>().add(UnsubscribeFromRealTimeUpdates());
     super.dispose();
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    context.read<ForexBloc>().add(LoadForexInstruments());
   }
 
   @override
@@ -31,13 +42,29 @@ class _ForexListPageState extends State<ForexListPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Forex Instruments'),
+        actions: [
+          IconButton(
+            icon: Icon(
+                _sortAscending ? Icons.arrow_upward : Icons.arrow_downward),
+            onPressed: () {
+              setState(() {
+                _sortAscending = !_sortAscending;
+              });
+              context
+                  .read<ForexBloc>()
+                  .add(SortForexInstruments(ascending: _sortAscending));
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
-          SearchBar(
+          FSearchBar(
+            controller: _searchController,
             onChanged: (query) {
               context.read<ForexBloc>().add(SearchForexInstruments(query));
             },
+            onClear: _clearSearch,
           ),
           Expanded(
             child: BlocBuilder<ForexBloc, ForexState>(
@@ -84,11 +111,10 @@ class _ForexListPageState extends State<ForexListPage> {
         itemCount: instruments.length,
         itemBuilder: (context, index) {
           final instrument = instruments[index];
+          final previousInstrument = index > 0 ? instruments[index - 1] : null;
           return ForexListItem(
-            symbol: instrument.symbol,
-            displaySymbol: instrument.displaySymbol,
-            description: instrument.description,
-            price: instrument.price,
+            instrument: instrument,
+            previousInstrument: previousInstrument,
           );
         },
       ),

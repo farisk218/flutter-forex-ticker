@@ -10,7 +10,7 @@ class ForexInstrument extends Equatable {
     required this.description,
     required this.displaySymbol,
     required this.symbol,
-    this.price = 0.0, // Default to 0.0 if not provided
+    required this.price,
   });
 
   @override

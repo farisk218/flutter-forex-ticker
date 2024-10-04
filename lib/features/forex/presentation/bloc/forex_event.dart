@@ -43,3 +43,13 @@ class SearchForexInstruments extends ForexEvent {
 }
 
 class RotateSubscriptions extends ForexEvent {}
+
+
+class SortForexInstruments extends ForexEvent {
+  final bool ascending;
+
+  SortForexInstruments({this.ascending = true});
+
+  @override
+  List<Object?> get props => [ascending];
+}
