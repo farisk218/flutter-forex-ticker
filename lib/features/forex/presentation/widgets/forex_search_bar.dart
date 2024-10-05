@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class FSearchBar extends StatelessWidget {
   final Function(String) onChanged;
@@ -15,27 +16,32 @@ class FSearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      padding: EdgeInsets.fromLTRB(10.w, 8.h, 10.w, 8.h),
       child: TextField(
         controller: controller,
         onChanged: onChanged,
         decoration: InputDecoration(
           hintText: 'Search currency pair',
-          prefixIcon: const Icon(Icons.search),
+          hintStyle: TextStyle(fontSize: 14.sp),
+          prefixIcon: Icon(Icons.search, size: 20.sp),
           suffixIcon: IconButton(
-            icon: const Icon(Icons.clear),
-            onPressed: () {
-              controller.clear();
-              onClear();
-            },
+            icon: Icon(Icons.clear, size: 20.sp),
+            onPressed: _clearSearch,
           ),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(30),
+            borderRadius: BorderRadius.circular(30.r),
             borderSide: BorderSide.none,
           ),
           filled: true,
+          contentPadding: EdgeInsets.symmetric(vertical: 10.h, horizontal: 15.w),
         ),
+        style: TextStyle(fontSize: 14.sp),
       ),
     );
+  }
+
+  void _clearSearch() {
+    controller.clear();
+    onClear();
   }
 }

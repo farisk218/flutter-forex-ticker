@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:developer';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_trading_app/features/forex/domain/entities/forex_instrument.dart';
 import 'package:flutter_trading_app/features/forex/presentation/bloc/forex_bloc.dart';
 import 'package:flutter_trading_app/features/forex/presentation/bloc/forex_event.dart';
@@ -43,10 +43,10 @@ class _ForexListPageState extends State<ForexListPage> {
   }
 
   void _onVisibleItemsChanged() {
-    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 300), () {
       final visibleSymbols = _getVisibleSymbols();
-      log('${visibleSymbols.length}');
+      log('Visible symbols: ${visibleSymbols.length}');
       context.read<ForexBloc>().add(UpdateVisibleSymbols(visibleSymbols));
     });
   }
@@ -54,26 +54,26 @@ class _ForexListPageState extends State<ForexListPage> {
   List<String> _getVisibleSymbols() {
     final positions = _itemPositionsListener.itemPositions.value;
     final state = context.read<ForexBloc>().state;
-
     if (positions.isEmpty) return [];
 
     final firstIndex = positions.first.index;
     final lastIndex = positions.last.index;
 
     if (state is ForexLoaded) {
-      return state.instruments
-          .sublist(firstIndex.clamp(0, state.instruments.length - 1),
-              lastIndex.clamp(0, state.instruments.length))
-          .map((i) => i.symbol)
-          .toList();
+      return _getSymbolsFromList(state.instruments, firstIndex, lastIndex);
     } else if (state is ForexSearchResult) {
-      return state.searchResults
-          .sublist(firstIndex.clamp(0, state.searchResults.length - 1),
-              lastIndex.clamp(0, state.searchResults.length))
-          .map((i) => i.symbol)
-          .toList();
+      return _getSymbolsFromList(state.searchResults, firstIndex, lastIndex);
     }
     return [];
+  }
+
+  List<String> _getSymbolsFromList(
+      List<ForexInstrument> instruments, int firstIndex, int lastIndex) {
+    return instruments
+        .sublist(firstIndex.clamp(0, instruments.length - 1),
+            lastIndex.clamp(0, instruments.length))
+        .map((i) => i.symbol)
+        .toList();
   }
 
   void _clearSearch() {
@@ -85,83 +85,26 @@ class _ForexListPageState extends State<ForexListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            const Icon(Icons.show_chart),
-            SizedBox(
-              width: 10,
-            ),
-            const Text('Forex'),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(_sortAscending ? Icons.sort_outlined : Icons.sort),
-            onPressed: () {
-              setState(() {
-                _sortAscending = !_sortAscending;
-              });
-              context
-                  .read<ForexBloc>()
-                  .add(SortForexInstruments(ascending: _sortAscending));
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Feature in development'),
-                  duration: Duration(milliseconds: 200),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
+      appBar: _buildAppBar(),
       body: Column(
         children: [
           FSearchBar(
             controller: _searchController,
-            onChanged: (query) {
-              context.read<ForexBloc>().add(SearchForexInstruments(query));
-            },
+            onChanged: (query) =>
+                context.read<ForexBloc>().add(SearchForexInstruments(query)),
             onClear: _clearSearch,
           ),
           Expanded(
-            child: BlocConsumer<ForexBloc, ForexState>(
-              listener: (context, state) {
-                if (state is ForexLoaded || state is ForexSearchResult) {
-                  // _sortAscending = (state as dynamic).instruments.first.price <=
-                  //     (state as dynamic).instruments.last.price;
-                }
-              },
+            child: BlocBuilder<ForexBloc, ForexState>(
               builder: (context, state) {
                 if (state is ForexLoading) {
-                  return Center(
-                    child: SpinKitFoldingCube(
-                      color: Colors.white38,
-                      size: 30.0,
-                    ),
-                  );
+                  return _buildLoadingIndicator();
                 } else if (state is ForexLoaded) {
                   return _buildForexList(state.instruments);
                 } else if (state is ForexSearchResult) {
                   return _buildForexList(state.searchResults);
                 } else if (state is ForexError) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text('Error: ${state.message}'),
-                        ElevatedButton(
-                          onPressed: () {
-                            context
-                                .read<ForexBloc>()
-                                .add(LoadForexInstruments());
-                          },
-                          child: const Text('Retry'),
-                        ),
-                      ],
-                    ),
-                  );
+                  return _buildErrorView(state.message);
                 }
                 return const Center(child: Text('No data available'));
               },
@@ -172,19 +115,72 @@ class _ForexListPageState extends State<ForexListPage> {
     );
   }
 
+  AppBar _buildAppBar() {
+    return AppBar(
+      title: Row(
+        children: [
+          Icon(Icons.show_chart, size: 24.sp),
+          SizedBox(width: 10.w),
+          Text('Forex', style: TextStyle(fontSize: 18.sp)),
+        ],
+      ),
+      actions: [
+        IconButton(
+          icon: Icon(_sortAscending ? Icons.sort_outlined : Icons.sort,
+              size: 24.sp),
+          onPressed: _toggleSort,
+        ),
+      ],
+    );
+  }
+
+  void _toggleSort() {
+    setState(() => _sortAscending = !_sortAscending);
+    context
+        .read<ForexBloc>()
+        .add(SortForexInstruments(ascending: _sortAscending));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Feature in development'),
+        duration: Duration(milliseconds: 200),
+      ),
+    );
+  }
+
+  Widget _buildLoadingIndicator() {
+    return Center(
+      child: SpinKitFoldingCube(
+        color: Colors.white38,
+        size: 30.0.sp,
+      ),
+    );
+  }
+
+  Widget _buildErrorView(String message) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text('Error: $message', style: TextStyle(fontSize: 16.sp)),
+          SizedBox(height: 20.h),
+          ElevatedButton(
+            onPressed: () =>
+                context.read<ForexBloc>().add(LoadForexInstruments()),
+            child: Text('Retry', style: TextStyle(fontSize: 14.sp)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildForexList(List<ForexInstrument> instruments) {
     return RefreshIndicator(
-      onRefresh: () async {
-        context.read<ForexBloc>().add(LoadForexInstruments());
-      },
+      onRefresh: () async =>
+          context.read<ForexBloc>().add(LoadForexInstruments()),
       child: ScrollablePositionedList.builder(
         itemCount: instruments.length,
-        itemBuilder: (context, index) {
-          final instrument = instruments[index];
-          return ForexListItem(
-            instrument: instrument,
-          );
-        },
+        itemBuilder: (context, index) =>
+            ForexListItem(instrument: instruments[index]),
         itemScrollController: _scrollController,
         itemPositionsListener: _itemPositionsListener,
       ),
