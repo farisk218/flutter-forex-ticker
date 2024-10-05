@@ -17,24 +17,40 @@ class ForexListItem extends StatelessWidget {
         instrument.price != previousInstrument!.price;
     final priceIncreased =
         priceChanged && instrument.price > previousInstrument!.price;
+    final pricePending = instrument.price == 0.0;
 
     return ListTile(
-      title: Text(instrument.displaySymbol),
+      title: Text(
+        instrument.displaySymbol,
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+        ),
+      ),
       subtitle: Text(instrument.description),
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Text(
-            instrument.price.toStringAsFixed(4),
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: priceChanged
-                  ? (priceIncreased ? Colors.green : Colors.red)
-                  : null,
+          if (pricePending)
+            Text(
+              '(pending)',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.white38,
+              ),
+            )
+          else
+            Text(
+              instrument.price.toStringAsFixed(4),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: priceChanged
+                    ? (priceIncreased ? Colors.green : Colors.red)
+                    : null,
+              ),
             ),
-          ),
-          if (priceChanged)
+          if (priceChanged && !pricePending)
             Icon(
               priceIncreased ? Icons.arrow_upward : Icons.arrow_downward,
               color: priceIncreased ? Colors.green : Colors.red,

@@ -14,9 +14,12 @@ class MyApp extends StatelessWidget {
     appRouter.initRouter(router);
 
     return MaterialApp(
-      title: 'Trading Instruments App',
+      title: 'Exinity Real-time Price Checker',
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.purple,
+          brightness: Brightness.dark,
+        ),
       ),
       onGenerateRoute: router.generator,
     );
