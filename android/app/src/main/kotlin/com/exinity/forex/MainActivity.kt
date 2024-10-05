@@ -1,4 +1,4 @@
-package com.example.flutter_trading_app
+package com.exinity.forex
 
 import io.flutter.embedding.android.FlutterActivity
 
