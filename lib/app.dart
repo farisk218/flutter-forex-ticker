@@ -1,6 +1,7 @@
 import 'package:fluro/fluro.dart';
 import 'package:flutter/material.dart';
 
+import 'core/theme/app_theme.dart';
 import 'router/app_router.dart';
 
 class MyApp extends StatelessWidget {
@@ -15,12 +16,7 @@ class MyApp extends StatelessWidget {
 
     return MaterialApp(
       title: 'Exinity Real-time Price Checker',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.purple,
-          brightness: Brightness.dark,
-        ),
-      ),
+      theme: AppTheme.darkTheme,
       onGenerateRoute: router.generator,
     );
   }
