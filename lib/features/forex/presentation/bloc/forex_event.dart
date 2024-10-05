@@ -53,3 +53,12 @@ class SortForexInstruments extends ForexEvent {
   @override
   List<Object?> get props => [ascending];
 }
+
+class UpdateVisibleSymbols extends ForexEvent {
+  final List<String> symbols;
+
+  UpdateVisibleSymbols(this.symbols);
+
+  @override
+  List<Object?> get props => [symbols];
+}

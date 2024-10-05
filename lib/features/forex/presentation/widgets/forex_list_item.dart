@@ -1,4 +1,7 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:flutter_trading_app/features/forex/domain/entities/forex_instrument.dart';
 
 class ForexListItem extends StatelessWidget {
@@ -13,11 +16,11 @@ class ForexListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final priceChanged = previousInstrument != null &&
-        instrument.price != previousInstrument!.price;
-    final priceIncreased =
-        priceChanged && instrument.price > previousInstrument!.price;
     final pricePending = instrument.price == 0.0;
+    // TODO: This needs to be implemented after getLastPrice
+    final priceIncreased = instrument.lastPrice == 0.0
+        ? Random().nextBool()
+        : instrument.price > instrument.lastPrice;
 
     return ListTile(
       title: Text(
@@ -32,11 +35,12 @@ class ForexListItem extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (pricePending)
-            Text(
-              '(pending)',
-              style: TextStyle(
-                fontSize: 12,
+            Container(
+              width: 10,
+              height: 10,
+              child: SpinKitFoldingCube(
                 color: Colors.white38,
+                size: 10.0,
               ),
             )
           else
@@ -45,12 +49,12 @@ class ForexListItem extends StatelessWidget {
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
-                color: priceChanged
+                color: !pricePending
                     ? (priceIncreased ? Colors.green : Colors.red)
                     : null,
               ),
             ),
-          if (priceChanged && !pricePending)
+          if (!pricePending)
             Icon(
               priceIncreased ? Icons.arrow_upward : Icons.arrow_downward,
               color: priceIncreased ? Colors.green : Colors.red,

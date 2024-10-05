@@ -3,6 +3,7 @@ import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:flutter_trading_app/features/forex/domain/entities/forex_instrument.dart';
 import 'package:flutter_trading_app/features/forex/presentation/bloc/forex_bloc.dart';
@@ -37,6 +38,7 @@ class _ForexListPageState extends State<ForexListPage> {
   void dispose() {
     _debounce?.cancel();
     _searchController.dispose();
+    context.read<ForexBloc>().add(UnsubscribeFromRealTimeUpdates());
     super.dispose();
   }
 
@@ -76,7 +78,8 @@ class _ForexListPageState extends State<ForexListPage> {
 
   void _clearSearch() {
     _searchController.clear();
-    context.read<ForexBloc>().add(LoadForexInstruments());
+    context.read<ForexBloc>().add(SearchForexInstruments(''));
+    FocusManager.instance.primaryFocus?.unfocus();
   }
 
   @override
@@ -126,13 +129,18 @@ class _ForexListPageState extends State<ForexListPage> {
             child: BlocConsumer<ForexBloc, ForexState>(
               listener: (context, state) {
                 if (state is ForexLoaded || state is ForexSearchResult) {
-                  _sortAscending = (state as dynamic).instruments.first.price <=
-                      (state as dynamic).instruments.last.price;
+                  // _sortAscending = (state as dynamic).instruments.first.price <=
+                  //     (state as dynamic).instruments.last.price;
                 }
               },
               builder: (context, state) {
                 if (state is ForexLoading) {
-                  return const Center(child: CircularProgressIndicator());
+                  return Center(
+                    child: SpinKitFoldingCube(
+                      color: Colors.white38,
+                      size: 30.0,
+                    ),
+                  );
                 } else if (state is ForexLoaded) {
                   return _buildForexList(state.instruments);
                 } else if (state is ForexSearchResult) {
@@ -173,12 +181,8 @@ class _ForexListPageState extends State<ForexListPage> {
         itemCount: instruments.length,
         itemBuilder: (context, index) {
           final instrument = instruments[index];
-          //TODO: This is a test for UI, actual function need to be implemented using previos price. Currently API is limited
-          final previousInstrument =
-              index > 0 ? instruments[index - 1] : instruments[index + 1];
           return ForexListItem(
             instrument: instrument,
-            previousInstrument: previousInstrument,
           );
         },
         itemScrollController: _scrollController,

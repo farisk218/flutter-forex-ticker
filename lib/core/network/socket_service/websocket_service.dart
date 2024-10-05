@@ -10,6 +10,7 @@ class WebSocketService {
   final void Function(dynamic) onError;
   Timer? _pingTimer;
   bool _isConnected = false;
+  bool _isDisposed = false;
 
   WebSocketService({
     required this.url,
@@ -22,6 +23,10 @@ class WebSocketService {
   }
 
   void connect() {
+    if (_isDisposed) {
+      log('WebSocketService has been disposed. Cannot connect.');
+      return;
+    }
     if (_isConnected) {
       log('WebSocket is already connected.');
       return;
@@ -41,12 +46,12 @@ class WebSocketService {
           log('WebSocket error: $error');
           _isConnected = false;
           onError(error);
-          _reconnect();
+          if (!_isDisposed) _reconnect();
         },
         onDone: () {
           log('WebSocket connection closed.');
           _isConnected = false;
-          _reconnect();
+          if (!_isDisposed) _reconnect();
         },
       );
 
@@ -54,7 +59,7 @@ class WebSocketService {
     } catch (e) {
       log('Failed to connect: $e');
       onError(e);
-      _reconnect();
+      if (!_isDisposed) _reconnect();
     }
   }
 
@@ -79,7 +84,7 @@ class WebSocketService {
   void _reconnect() {
     log('Attempting to reconnect in 5 seconds...');
     Future.delayed(Duration(seconds: 5), () {
-      if (!_isConnected) {
+      if (!_isDisposed && !_isConnected) {
         log('Reconnecting to WebSocket...');
         connect(); // Try reconnecting
       }
@@ -88,6 +93,7 @@ class WebSocketService {
 
   void dispose() {
     log('Disposing WebSocketService...');
+    _isDisposed = true;
     _pingTimer?.cancel();
     _channel?.sink.close();
     _isConnected = false;

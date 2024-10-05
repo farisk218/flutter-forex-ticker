@@ -1,11 +1,12 @@
 import 'package:dio/dio.dart';
+import 'package:flutter_trading_app/core/constants/app_urls.dart';
 import 'package:flutter_trading_app/core/network/http_service/http_util.dart';
+import 'package:flutter_trading_app/features/forex/domain/usecases/get_last_prices.dart';
 import 'package:get_it/get_it.dart';
 import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/network/network_info.dart';
-import 'core/network/socket_service/websocket_service.dart';
 import 'features/forex/data/datasources/forex_local_data_source.dart';
 import 'features/forex/data/datasources/forex_remote_data_source.dart';
 import 'features/forex/data/datasources/forex_remote_data_source_impl.dart';
@@ -23,12 +24,14 @@ Future<void> init() async {
     () => ForexBloc(
       getForexInstruments: sl(),
       getRealTimePrice: sl(),
+      getLastPrice: sl(),
     ),
   );
 
   // Use cases
   sl.registerLazySingleton(() => GetForexInstruments(sl()));
-  sl.registerLazySingleton(() => GetRealTimePrice(sl()));
+  sl.registerLazySingleton(() => GetRealTimePrice(ApiConstants.apiKey));
+  sl.registerLazySingleton(() => GetLastPrice(sl()));
 
   // Repository
   sl.registerLazySingleton<ForexRepository>(
@@ -50,7 +53,7 @@ Future<void> init() async {
 
   // Core
   sl.registerLazySingleton<NetworkInfo>(() => NetworkInfoImpl(sl()));
-  sl.registerLazySingleton<WebSocketService>(() => ForexWebSocketService());
+  // sl.registerLazySingleton<WebSocketService>(() => ForexWebSocketService());
   sl.registerLazySingleton(() => HttpUtil());
 
   // External

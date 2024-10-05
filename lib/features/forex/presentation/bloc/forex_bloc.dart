@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:developer';
+import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_trading_app/core/usecase.dart';
 import 'package:flutter_trading_app/features/forex/domain/entities/forex_instrument.dart';
 import 'package:flutter_trading_app/features/forex/domain/usecases/get_forex_instruments.dart';
 import 'package:flutter_trading_app/features/forex/domain/usecases/get_last_prices.dart';
 import 'package:flutter_trading_app/features/forex/domain/usecases/get_real_time_price.dart';
+import 'package:rxdart/rxdart.dart';
 import 'forex_event.dart';
 import 'forex_state.dart';
 
@@ -24,11 +26,15 @@ class ForexBloc extends Bloc<ForexEvent, ForexState> {
     required this.getRealTimePrice,
     required this.getLastPrice,
   }) : super(ForexInitial()) {
-    on<LoadForexInstruments>(_onLoadForexInstruments);
+    on<LoadForexInstruments>(_onLoadForexInstruments, transformer: droppable());
     on<UpdateVisibleSymbols>(_onUpdateVisibleSymbols);
-    on<UpdateForexPrice>(_onUpdateForexPrice);
-    on<SearchForexInstruments>(_onSearchForexInstruments);
+    on<UpdateForexPrice>(_onUpdateForexPrice, transformer: restartable());
+    on<SearchForexInstruments>(_onSearchForexInstruments,
+        transformer: (events, mapper) => events
+            .debounceTime(const Duration(milliseconds: 300))
+            .switchMap(mapper));
     on<SortForexInstruments>(_onSortForexInstruments);
+    on<UnsubscribeFromRealTimeUpdates>(_onUnsubscribeFromRealTimeUpdates);
   }
 
   Future<void> _onLoadForexInstruments(
@@ -44,12 +50,6 @@ class ForexBloc extends Bloc<ForexEvent, ForexState> {
             .take(20)
             .map((instrument) => instrument.symbol)
             .toList();
-
-        // TODO: To be implemented
-        // for (var item in instruments.take(20).toList()) {
-        //   _getLastPrice(item.displaySymbol);
-        // }
-
         _updateSubscriptions();
       },
     );
@@ -136,9 +136,16 @@ class ForexBloc extends Bloc<ForexEvent, ForexState> {
     );
   }
 
+  void _onUnsubscribeFromRealTimeUpdates(
+      UnsubscribeFromRealTimeUpdates event, Emitter<ForexState> emit) {
+    _priceSubscription?.cancel();
+    _priceSubscription = null;
+  }
+
   @override
   Future<void> close() async {
     await _priceSubscription?.cancel();
+    getRealTimePrice.dispose();
     return super.close();
   }
 }
