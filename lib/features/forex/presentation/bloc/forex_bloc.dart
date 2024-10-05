@@ -1,37 +1,33 @@
 import 'dart:async';
+import 'dart:developer';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:bloc_concurrency/bloc_concurrency.dart';
+import 'package:flutter_trading_app/core/usecase.dart';
 import 'package:flutter_trading_app/features/forex/domain/entities/forex_instrument.dart';
-import 'package:flutter_trading_app/features/forex/domain/entities/price_update.dart';
 import 'package:flutter_trading_app/features/forex/domain/usecases/get_forex_instruments.dart';
+import 'package:flutter_trading_app/features/forex/domain/usecases/get_last_prices.dart';
 import 'package:flutter_trading_app/features/forex/domain/usecases/get_real_time_price.dart';
-import 'package:rxdart/rxdart.dart';
-import '../../../../core/usecase.dart';
 import 'forex_event.dart';
 import 'forex_state.dart';
 
 class ForexBloc extends Bloc<ForexEvent, ForexState> {
   final GetForexInstruments getForexInstruments;
   final GetRealTimePrice getRealTimePrice;
+  final GetLastPrice getLastPrice;
   StreamSubscription? _priceSubscription;
-  final int maxSymbolSubscriptions = 10;
-  List<String> _allSymbols = [];
-  int _currentSymbolIndex = 0;
-  Timer? _rotationTimer;
+  List<String> _visibleSymbols = [];
+  List<String> _searchSymbols = [];
+  List<ForexInstrument> _allInstruments = [];
+  bool _sortAscending = true;
 
   ForexBloc({
     required this.getForexInstruments,
     required this.getRealTimePrice,
+    required this.getLastPrice,
   }) : super(ForexInitial()) {
-    on<LoadForexInstruments>(_onLoadForexInstruments, transformer: droppable());
-    on<SubscribeToRealTimeUpdates>(_onSubscribeToRealTimeUpdates);
-    on<UnsubscribeFromRealTimeUpdates>(_onUnsubscribeFromRealTimeUpdates);
-    on<UpdateForexPrice>(_onUpdateForexPrice, transformer: restartable());
-    on<SearchForexInstruments>(_onSearchForexInstruments,
-        transformer: (events, mapper) => events
-            .debounceTime(const Duration(milliseconds: 300))
-            .switchMap(mapper));
-    on<RotateSubscriptions>(_onRotateSubscriptions);
+    on<LoadForexInstruments>(_onLoadForexInstruments);
+    on<UpdateVisibleSymbols>(_onUpdateVisibleSymbols);
+    on<UpdateForexPrice>(_onUpdateForexPrice);
+    on<SearchForexInstruments>(_onSearchForexInstruments);
     on<SortForexInstruments>(_onSortForexInstruments);
   }
 
@@ -39,120 +35,110 @@ class ForexBloc extends Bloc<ForexEvent, ForexState> {
       LoadForexInstruments event, Emitter<ForexState> emit) async {
     emit(ForexLoading());
     final result = await getForexInstruments(NoParams());
-    if (emit.isDone) return;
     result.fold(
       (failure) => emit(ForexError(message: failure.toString())),
       (instruments) {
-        _allSymbols = instruments.map((i) => i.symbol).toList();
-        emit(ForexLoaded(instruments: instruments));
-        // Cancel existing subscription and start a new one
-        _priceSubscription?.cancel();
-        _subscribeToNextBatch();
+        _allInstruments = instruments;
+        emit(ForexLoaded(instruments: _sortInstruments(instruments)));
+        _visibleSymbols = instruments
+            .take(20)
+            .map((instrument) => instrument.symbol)
+            .toList();
+
+        // TODO: To be implemented
+        // for (var item in instruments.take(20).toList()) {
+        //   _getLastPrice(item.displaySymbol);
+        // }
+
+        _updateSubscriptions();
       },
     );
   }
 
-  void _subscribeToNextBatch() {
-    final endIndex = (_currentSymbolIndex + maxSymbolSubscriptions)
-        .clamp(0, _allSymbols.length);
-    final symbolsToSubscribe =
-        _allSymbols.sublist(_currentSymbolIndex, endIndex);
-    add(SubscribeToRealTimeUpdates(symbolsToSubscribe));
-    _currentSymbolIndex = endIndex % _allSymbols.length;
-
-    _rotationTimer?.cancel();
-    _rotationTimer =
-        Timer(Duration(minutes: 1), () => add(RotateSubscriptions()));
-  }
-
-  Future<void> _onSubscribeToRealTimeUpdates(
-      SubscribeToRealTimeUpdates event, Emitter<ForexState> emit) async {
-    await _priceSubscription?.cancel();
-    try {
-      final stream = getRealTimePrice(event.symbols);
-      await emit.forEach<PriceUpdate>(
-        stream,
-        onData: (priceUpdate) {
-          if (state is ForexLoaded) {
-            final currentState = state as ForexLoaded;
-            final updatedInstruments = currentState.instruments
-                .map((instrument) => instrument.symbol == priceUpdate.symbol
-                    ? instrument.copyWith(price: priceUpdate.price)
-                    : instrument)
-                .toList();
-            return ForexLoaded(instruments: updatedInstruments);
-          }
-          return state;
-        },
-        onError: (error, stackTrace) {
-          return ForexError(message: error.toString());
-        },
-      );
-    } catch (e) {
-      if (!emit.isDone) {
-        emit(ForexError(message: 'Failed to subscribe: ${e.toString()}'));
-      }
-      _subscribeToNextBatch();
-    }
-  }
-
-  Future<void> _onUnsubscribeFromRealTimeUpdates(
-      UnsubscribeFromRealTimeUpdates event, Emitter<ForexState> emit) async {
-    await _priceSubscription?.cancel();
-    _priceSubscription = null;
+  void _onUpdateVisibleSymbols(
+      UpdateVisibleSymbols event, Emitter<ForexState> emit) {
+    _visibleSymbols = event.symbols;
+    _updateSubscriptions();
   }
 
   void _onUpdateForexPrice(UpdateForexPrice event, Emitter<ForexState> emit) {
+    final updatedInstruments = _allInstruments.map((instrument) {
+      if (instrument.symbol == event.symbol) {
+        return instrument.copyWith(price: event.price);
+      }
+      return instrument;
+    }).toList();
+
+    _allInstruments = updatedInstruments;
+
     if (state is ForexLoaded) {
-      final currentState = state as ForexLoaded;
-      final updatedInstruments = currentState.instruments
-          .map((instrument) => instrument.symbol == event.symbol
-              ? instrument.copyWith(price: event.price)
-              : instrument)
-          .toList();
-      emit(ForexLoaded(instruments: updatedInstruments));
+      emit(ForexLoaded(instruments: _sortInstruments(updatedInstruments)));
+    } else if (state is ForexSearchResult) {
+      final currentState = state as ForexSearchResult;
+      final updatedSearchResults = currentState.searchResults.map((instrument) {
+        if (instrument.symbol == event.symbol) {
+          return instrument.copyWith(price: event.price);
+        }
+        return instrument;
+      }).toList();
+      emit(ForexSearchResult(
+          searchResults: _sortInstruments(updatedSearchResults)));
     }
   }
 
   void _onSearchForexInstruments(
       SearchForexInstruments event, Emitter<ForexState> emit) {
-    if (state is ForexLoaded) {
-      final currentState = state as ForexLoaded;
-      final searchResults = currentState.instruments
-          .where((instrument) => instrument.symbol
-              .toLowerCase()
-              .contains(event.query.toLowerCase()))
-          .toList();
-      emit(ForexSearchResult(searchResults: searchResults));
-      // Update subscriptions based on search results
-      _allSymbols = searchResults.map((i) => i.symbol).toList();
-      _currentSymbolIndex = 0;
-      _subscribeToNextBatch();
-    }
-  }
-
-  void _onRotateSubscriptions(
-      RotateSubscriptions event, Emitter<ForexState> emit) {
-    _subscribeToNextBatch();
+    final searchResults = _allInstruments
+        .where((instrument) =>
+            instrument.symbol.toLowerCase().contains(event.query.toLowerCase()))
+        .toList();
+    _searchSymbols = searchResults.map((i) => i.symbol).toList();
+    emit(ForexSearchResult(searchResults: _sortInstruments(searchResults)));
+    _updateSubscriptions();
   }
 
   void _onSortForexInstruments(
       SortForexInstruments event, Emitter<ForexState> emit) {
+    _sortAscending = event.ascending;
     if (state is ForexLoaded) {
       final currentState = state as ForexLoaded;
-      final sortedInstruments =
-          List<ForexInstrument>.from(currentState.instruments)
-            ..sort((a, b) => event.ascending
-                ? a.price.compareTo(b.price)
-                : b.price.compareTo(a.price));
-      emit(ForexLoaded(instruments: sortedInstruments));
+      emit(
+          ForexLoaded(instruments: _sortInstruments(currentState.instruments)));
+    } else if (state is ForexSearchResult) {
+      final currentState = state as ForexSearchResult;
+      emit(ForexSearchResult(
+          searchResults: _sortInstruments(currentState.searchResults)));
     }
+  }
+
+  List<ForexInstrument> _sortInstruments(List<ForexInstrument> instruments) {
+    // TODO: Sort should be handled
+    return instruments;
+  }
+
+  Future<void> _getLastPrice(symbol) async {
+    await getLastPrice(symbol);
+  }
+
+  void _updateSubscriptions() {
+    final prioritySymbols = {..._searchSymbols, ..._visibleSymbols}.toList();
+    log("_updateSubscriptions $prioritySymbols");
+    _priceSubscription?.cancel();
+    _priceSubscription = getRealTimePrice(prioritySymbols).listen(
+      (priceUpdate) {
+        log("priceUpdate");
+        add(UpdateForexPrice(
+            symbol: priceUpdate.symbol, price: priceUpdate.price));
+      },
+      onError: (error) {
+        emit(ForexError(message: error.toString()));
+      },
+    );
   }
 
   @override
   Future<void> close() async {
     await _priceSubscription?.cancel();
-    _rotationTimer?.cancel();
     return super.close();
   }
 }

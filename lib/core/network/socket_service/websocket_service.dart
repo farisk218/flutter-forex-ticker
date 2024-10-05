@@ -1,70 +1,95 @@
 import 'dart:async';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'dart:convert';
+import 'dart:developer';
 
-abstract class WebSocketService {
-  Stream<Map<String, dynamic>> connect(String url);
-  void sendMessage(String message);
-  void dispose();
-}
-
-class ForexWebSocketService implements WebSocketService {
+class WebSocketService {
   WebSocketChannel? _channel;
-  StreamController<Map<String, dynamic>>? _streamController;
-  bool _isDisposed = false;
+  final String url;
+  void Function(dynamic) onData;
+  final void Function(dynamic) onError;
+  Timer? _pingTimer;
+  bool _isConnected = false;
 
-  @override
-  Stream<Map<String, dynamic>> connect(String url) {
-    _streamController = StreamController<Map<String, dynamic>>.broadcast();
-    _channel = WebSocketChannel.connect(Uri.parse(url));
+  WebSocketService({
+    required this.url,
+    required this.onData,
+    required this.onError,
+  });
 
-    _channel!.stream.listen(
-      (message) {
-        if (!_isDisposed && _streamController != null && !_streamController!.isClosed) {
-          try {
-            final data = json.decode(message);
-            if (data['type'] == 'trade') {
-              for (var trade in data['data']) {
-                _streamController!.add({
-                  'symbol': trade['s'],
-                  'price': trade['p'],
-                  'timestamp': trade['t'],
-                });
-              }
-            } else if (data['type'] == 'error') {
-              _streamController!.addError(data['msg']);
-            }
-          } catch (e) {
-            _streamController!.addError('Error processing message: $e');
-          }
-        }
-      },
-      onError: (error) {
-        if (!_isDisposed && _streamController != null && !_streamController!.isClosed) {
-          _streamController!.addError(error.toString());
-        }
-      },
-      onDone: () {
-        if (!_isDisposed && _streamController != null && !_streamController!.isClosed) {
-          _streamController!.close();
-        }
-      },
-    );
-
-    return _streamController!.stream;
+  void setOnData(Function(dynamic) onDataCallback) {
+    onData = onDataCallback;
   }
 
-  @override
-  void sendMessage(String message) {
-    if (!_isDisposed && _channel != null) {
-      _channel!.sink.add(message);
+  void connect() {
+    if (_isConnected) {
+      log('WebSocket is already connected.');
+      return;
+    }
+
+    try {
+      log('Connecting to WebSocket: $url');
+      _channel = WebSocketChannel.connect(Uri.parse(url));
+      _isConnected = true;
+
+      _channel!.stream.listen(
+        (data) {
+          log('Received data: $data');
+          onData(json.decode(data));
+        },
+        onError: (error) {
+          log('WebSocket error: $error');
+          _isConnected = false;
+          onError(error);
+          _reconnect();
+        },
+        onDone: () {
+          log('WebSocket connection closed.');
+          _isConnected = false;
+          _reconnect();
+        },
+      );
+
+      _startPingTimer();
+    } catch (e) {
+      log('Failed to connect: $e');
+      onError(e);
+      _reconnect();
     }
   }
 
-  @override
+  void sendMessage(String message) {
+    if (_isConnected && _channel != null) {
+      log('Sending message: $message');
+      _channel!.sink.add(message);
+    } else {
+      log('Failed to send message. WebSocket is not connected.');
+    }
+  }
+
+  void _startPingTimer() {
+    _pingTimer?.cancel();
+    log('Starting ping timer...');
+    _pingTimer = Timer.periodic(Duration(seconds: 30), (_) {
+      sendMessage(json.encode({"type": "ping"}));
+      log('Ping message sent to keep the connection alive.');
+    });
+  }
+
+  void _reconnect() {
+    log('Attempting to reconnect in 5 seconds...');
+    Future.delayed(Duration(seconds: 5), () {
+      if (!_isConnected) {
+        log('Reconnecting to WebSocket...');
+        connect(); // Try reconnecting
+      }
+    });
+  }
+
   void dispose() {
-    _isDisposed = true;
+    log('Disposing WebSocketService...');
+    _pingTimer?.cancel();
     _channel?.sink.close();
-    _streamController?.close();
+    _isConnected = false;
   }
 }
