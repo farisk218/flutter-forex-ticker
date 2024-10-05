@@ -33,7 +33,8 @@ class FSearchBar extends StatelessWidget {
             borderSide: BorderSide.none,
           ),
           filled: true,
-          contentPadding: EdgeInsets.symmetric(vertical: 10.h, horizontal: 15.w),
+          contentPadding:
+              EdgeInsets.symmetric(vertical: 10.h, horizontal: 15.w),
         ),
         style: TextStyle(fontSize: 14.sp),
       ),

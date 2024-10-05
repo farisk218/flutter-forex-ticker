@@ -7,7 +7,7 @@ import '../entities/price_update.dart';
 class GetRealTimePrice {
   final WebSocketService _webSocketService;
   final _controller = StreamController<PriceUpdate>.broadcast();
-  final int maxSubscriptions = 50;  // Finnhub limit
+  final int maxSubscriptions = 50; // Finnhub limit
   Set<String> _subscribedSymbols = {};
 
   GetRealTimePrice(String apiKey)
@@ -35,20 +35,17 @@ class GetRealTimePrice {
 
   Stream<PriceUpdate> call(List<String> symbols) {
     final symbolsToSubscribe = symbols.take(maxSubscriptions).toSet();
-    final symbolsToUnsubscribe = _subscribedSymbols.difference(symbolsToSubscribe);
+    final symbolsToUnsubscribe =
+        _subscribedSymbols.difference(symbolsToSubscribe);
 
     for (var symbol in symbolsToUnsubscribe) {
-      _webSocketService.sendMessage(json.encode({
-        "type": "unsubscribe",
-        "symbol": symbol
-      }));
+      _webSocketService
+          .sendMessage(json.encode({"type": "unsubscribe", "symbol": symbol}));
     }
 
     for (var symbol in symbolsToSubscribe.difference(_subscribedSymbols)) {
-      _webSocketService.sendMessage(json.encode({
-        "type": "subscribe",
-        "symbol": symbol
-      }));
+      _webSocketService
+          .sendMessage(json.encode({"type": "subscribe", "symbol": symbol}));
     }
 
     _subscribedSymbols = symbolsToSubscribe;

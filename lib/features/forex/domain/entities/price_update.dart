@@ -1,4 +1,3 @@
-
 class PriceUpdate {
   final String symbol;
   final double price;

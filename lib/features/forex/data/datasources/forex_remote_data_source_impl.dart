@@ -1,4 +1,3 @@
-import 'dart:developer';
 
 import 'package:flutter_trading_app/core/constants/app_urls.dart';
 import 'package:flutter_trading_app/core/error/exceptions.dart';

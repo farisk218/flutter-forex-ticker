@@ -30,7 +30,10 @@ class UpdateForexPrice extends ForexEvent {
   });
 
   @override
-  List<Object?> get props => [symbol, price, ];
+  List<Object?> get props => [
+        symbol,
+        price,
+      ];
 }
 
 class SearchForexInstruments extends ForexEvent {
@@ -43,7 +46,6 @@ class SearchForexInstruments extends ForexEvent {
 }
 
 class RotateSubscriptions extends ForexEvent {}
-
 
 class SortForexInstruments extends ForexEvent {
   final bool ascending;
