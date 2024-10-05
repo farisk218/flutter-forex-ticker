@@ -8,11 +8,13 @@ class ForexInstrumentModel extends ForexInstrument
     required String displaySymbol,
     required String symbol,
     double price = 0.0,
+    double lastPrice = 0.0,
   }) : super(
           description: description,
           displaySymbol: displaySymbol,
           symbol: symbol,
           price: price,
+          lastPrice: lastPrice,
         );
 
   @override
@@ -27,6 +29,7 @@ class ForexInstrumentModel extends ForexInstrument
       'displaySymbol': displaySymbol,
       'symbol': symbol,
       'price': price,
+      'lastPrice': lastPrice,
     };
   }
 
@@ -36,6 +39,7 @@ class ForexInstrumentModel extends ForexInstrument
       displaySymbol: json['displaySymbol'] ?? '',
       symbol: json['symbol'] ?? '',
       price: (json['price'] != null) ? (json['price'] as num).toDouble() : 0.0,
+      lastPrice: (json['lastPrice'] != null) ? (json['lastPrice'] as num).toDouble() : 0.0,
     );
   }
 
@@ -45,6 +49,7 @@ class ForexInstrumentModel extends ForexInstrument
       displaySymbol: '',
       symbol: '',
       price: 0.0,
+      lastPrice: 0.0,
     );
   }
 }

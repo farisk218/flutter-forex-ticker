@@ -9,7 +9,6 @@ class GetRealTimePrice {
   final _controller = StreamController<PriceUpdate>.broadcast();
   final int maxSubscriptions = 50;  // Finnhub limit
   Set<String> _subscribedSymbols = {};
-  bool _isDisposed = false;
 
   GetRealTimePrice(String apiKey)
       : _webSocketService = WebSocketService(
@@ -17,11 +16,11 @@ class GetRealTimePrice {
           onData: (data) {},
           onError: (error) => print('WebSocket error: $error'),
         ) {
-    _webSocketService.setOnData(_handleWebSocketData);
+    _webSocketService.connect();
+    _webSocketService.onData = _handleWebSocketData;
   }
 
   void _handleWebSocketData(dynamic data) {
-    if (_isDisposed) return;
     if (data['type'] == 'trade') {
       for (var trade in data['data']) {
         if (_subscribedSymbols.contains(trade['s'])) {
@@ -35,12 +34,6 @@ class GetRealTimePrice {
   }
 
   Stream<PriceUpdate> call(List<String> symbols) {
-    if (_isDisposed) {
-      throw StateError('GetRealTimePrice has been disposed');
-    }
-
-    _webSocketService.connect();
-
     final symbolsToSubscribe = symbols.take(maxSubscriptions).toSet();
     final symbolsToUnsubscribe = _subscribedSymbols.difference(symbolsToSubscribe);
 
@@ -64,15 +57,6 @@ class GetRealTimePrice {
   }
 
   void dispose() {
-    if (_isDisposed) return;
-    _isDisposed = true;
-    for (var symbol in _subscribedSymbols) {
-      _webSocketService.sendMessage(json.encode({
-        "type": "unsubscribe",
-        "symbol": symbol
-      }));
-    }
-    _subscribedSymbols.clear();
     _controller.close();
     _webSocketService.dispose();
   }

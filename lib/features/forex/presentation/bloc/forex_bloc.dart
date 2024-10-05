@@ -46,11 +46,10 @@ class ForexBloc extends Bloc<ForexEvent, ForexState> {
       (instruments) {
         _allInstruments = instruments;
         emit(ForexLoaded(instruments: _sortInstruments(instruments)));
-        _visibleSymbols = instruments
-            .take(20)
-            .map((instrument) => instrument.symbol)
-            .toList();
-        _updateSubscriptions();
+        // TODO: To be implemented
+        // for (var item in instruments.take(20).toList()) {
+        //   _getLastPrice(item.displaySymbol);
+        // }
       },
     );
   }
@@ -64,7 +63,10 @@ class ForexBloc extends Bloc<ForexEvent, ForexState> {
   void _onUpdateForexPrice(UpdateForexPrice event, Emitter<ForexState> emit) {
     final updatedInstruments = _allInstruments.map((instrument) {
       if (instrument.symbol == event.symbol) {
-        return instrument.copyWith(price: event.price);
+        return instrument.copyWith(
+          price: event.price,
+          lastPrice: instrument.price,
+        );
       }
       return instrument;
     }).toList();
@@ -126,12 +128,15 @@ class ForexBloc extends Bloc<ForexEvent, ForexState> {
     _priceSubscription?.cancel();
     _priceSubscription = getRealTimePrice(prioritySymbols).listen(
       (priceUpdate) {
-        log("priceUpdate");
-        add(UpdateForexPrice(
-            symbol: priceUpdate.symbol, price: priceUpdate.price));
+        add(
+          UpdateForexPrice(
+            symbol: priceUpdate.symbol,
+            price: priceUpdate.price,
+          ),
+        );
       },
       onError: (error) {
-        emit(ForexError(message: error.toString()));
+        log(error.toString());
       },
     );
   }
