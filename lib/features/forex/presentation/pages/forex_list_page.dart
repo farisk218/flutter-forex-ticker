@@ -11,6 +11,7 @@ import 'package:flutter_trading_app/features/forex/presentation/bloc/forex_event
 import 'package:flutter_trading_app/features/forex/presentation/bloc/forex_state.dart';
 import 'package:flutter_trading_app/features/forex/presentation/widgets/forex_list_item.dart';
 import '../widgets/forex_search_bar.dart';
+import '../widgets/initial_loading_dialog.dart';
 
 class ForexListPage extends StatefulWidget {
   const ForexListPage({Key? key}) : super(key: key);
@@ -32,7 +33,14 @@ class _ForexListPageState extends State<ForexListPage> {
     super.initState();
     context.read<ForexBloc>().add(LoadForexInstruments());
     _itemPositionsListener.itemPositions.addListener(_onVisibleItemsChanged);
-  }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      showDialog(
+        context: context,
+        builder: (BuildContext context) => InitialLoadDialog(),
+      );
+    });
+}
 
   @override
   void dispose() {
